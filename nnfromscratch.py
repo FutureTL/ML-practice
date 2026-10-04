@@ -3,14 +3,16 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from sklearn.datasets import fetch_openml
 from sklearn.model_selection import train_test_split
-import time
-import sys
+from layer import Dense, Softmax, softmax
+from activationfunctions import ReLU, relu
+from error import d_mse, mse
 
 # control the randomness and produce the same sequence everytime
 seed = 42
 np.random.seed(seed)
 
 # data-processing
+print("Loading MNIST dataset...")
 X, y = fetch_openml(
     "mnist_784",
     version=1,
@@ -31,10 +33,10 @@ print(y.shape)
 # now that we know the shape of the data we convert it to numpy arrays as they are better for computation and mathmatical operations.
 X = np.asarray(X) 
 # convert it to 784X1 column vector- so that we have all pixel arrays of an image column wise now, as it is easy to feed to NN layers
-X = X.reshape(X.shape[0],X.shape[1], 1)
+X = X.reshape(X.shape[0],X.shape[1], 1)/255
 
 # similarly we do for y,
-y = np.asarray(y)
+y = np.asarray(y, dtype=int)
 
 # uptil now I have done no changes to the data- we have simply converted it to numpy arrays.
 # Feature scaling makes sense here as each image pixel can go from 0-255 and we had studied that if there is a higher range in input
@@ -52,8 +54,8 @@ for ax, image, label in zip(axes.flat, X[:40], y[:40]):
     ax.set_title(str(label), y=-0.35)
 
 fig.suptitle("Examples of MNIST Handwritten Digits", y=0.0, fontsize=20)
-plt.tight_layout()
-plt.show()
+# plt.tight_layout()
+# plt.show()
 
 # convert lable to one-hot encoded vectors-> this helps us later for easy comparison when our nn will return.
 def oneHot(y):
@@ -92,6 +94,8 @@ X_train, X_test, y_train, y_test = train_test_split(
 # all the initial work done with the input and label: Now I will built NN
 # I will start at the end where nn is called and then build each function required for that.
 
+print("Starting training...")
+
 class Network():
     def __init__(self,layers):
         self.layers= layers
@@ -102,12 +106,60 @@ class Network():
     def predict(self, input):
         output = input
 
-        for each layer in layers:
+        for layer in self.layers:
            output = layer.forward_propagate(output)
 
         return output
     
-    
+    def train(self, X, y, cost, d_cost, epochs, batch_size, learning_rate, validation_split=0.2, verbose = True):
+        
+        history = { 'Accuracy': [] , 'Validation Accuracy': [] }
+        size = X.shape[0]
+
+        # split into training and validation set 
+        split = int(validation_split * size)
+
+        X_train, X_val = X[split:], X[:split]
+        y_train, y_val = y[split:], y[:split]
+
+        for epoch in range(epochs):
+            count = 0
+            val_count = 0
+
+            for x, y in zip(X_train, y_train):
+                output = self.predict(x)
+                # this will be the output of the softmax layer for our code. This is therefore
+                # the probability array containing 10 values
+                # next goal would be to compare ths with y to find if it is accurate prediction or we need to calculate the errors for this.
+                grad = d_mse(output, y.reshape(-1, 1))
+                for layer in reversed(self.layers):
+                    grad = layer.backward_propagate(grad, learning_rate)
+
+                # here we will compare the index values of predicted y and true y to see if both match or not- our prediction is correct or not
+                if np.argmax(output) == np.argmax(y):
+                    count+=1
+                    # we are calculating our accuracy 
+                
+            accuracy = count/(size-split)
+            # (size- split ) gives us the no. of values in training. so simply accuracy is how many times we predicted correctly as compared to total times it ran.
+
+            for x, y in zip( X_val, y_val ):
+                output = self.predict(x)
+
+                if np.argmax(output) == np.argmax(y):
+                    val_count+=1
+
+            val_accuracy = val_count/split
+
+            if verbose:
+                print('Epoch: %d/%d' % (epoch+1, epochs))
+                print(f'Training Accuracy: {accuracy:.2%} - Validation Accuracy: {val_accuracy:.2%}')
+
+            # Stores accuracy at each epoch
+            history['Accuracy'].append(accuracy)
+            history['Validation Accuracy'].append(val_accuracy)
+
+        return history
 
 
 
@@ -117,3 +169,6 @@ network = Network([
     Dense(40,10),
     softmax()
 ])
+
+
+history = network.train(X_train, y_train, mse, d_mse, epochs=50, batch_size=32, learning_rate=0.1, validation_split=0.2, verbose=True)

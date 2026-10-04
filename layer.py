@@ -11,11 +11,11 @@ class Layer():
         self.input = None
         self.output = None
     
-    def forward_propagate():
+    def forward_propagate(self, input):
         # forward progagation function that is used by each layer
         pass
     
-    def backward_propagte():
+    def backward_propagate(self, grad, learning_rate):
         # similarly each layer also has a backward propagation function to update the weights/parameters
         pass
 
@@ -39,20 +39,39 @@ class Dense(Layer):
         # 2nd vector of output_size x 1 column
         
 
-        '''
-        define the forward propagation logic for any layer
-        '''
-        def forward_propagate(self, input):
-            self.input = input 
-            return np.dot(self.weights, self.input) + self.biases
-                 #  [40x784 , 784x1]= 40x1  and biases also has 40x1 dimension so overall 40 output coming from 1st layer
+    '''
+    define the forward propagation logic for any layer
+    '''
+    def forward_propagate(self, input):
+        self.input = input 
+        return np.dot(self.weights, self.input) + self.biases
+             #  [40x784 , 784x1]= 40x1  and biases also has 40x1 dimension so overall 40 output coming from 1st layer
 
 
 
+    '''
+    backward propagation- 
+    imagine this is the 2nd dense layer that has 10 units/neurons. Its input is a and output is z. we have already caluculated
+    the derivative/grad of this z in the backward propagate function of softmax. we now need to calculate grad of a, weights and bias
+    '''
+    def backward_propagate(self, grad, learning_rate):
+        gradient_of_input = np.dot(self.weights.T, grad)
+        # grad_of_a = dot product of transpose of weights and output gradient
+        # weights have 10x40 so its transpose has 40x10, and gard of output, 10x1 so size of a is 40x1. 
         '''
-        backward propagation- 
+        we also have to update the weights- we must update weights and biases only when gradient fpr both have been 
+        found. If we update weight before calcualting the gradient for bias, then it get wrong values.
+    
+        '''
+        gradient_of_weights = np.dot(grad, self.input.T)
+        gradient_of_bias = grad
+        self.weights = self.weights - learning_rate*gradient_of_weights
+        self.biases = self.biases - learning_rate*gradient_of_bias
+        return gradient_of_input
+        # for 2nd dense layer this derivative will be used by relu layer for calculating its derivative values now.
+            
 
-        '''
+            
 
 '''
 Softmax function- applied in the last layer of the neural network to convert the output into probabilities
@@ -70,3 +89,24 @@ class Softmax(Layer):
         # np.sum will sum up all those exponential values and then we divide them
         # ouput is an array of those probability conversions
         return self.output
+
+    def backward_propagate(self, grad, learning_rate):
+        '''
+        lets say z is the input to the softmax layer and y_predict was its output.
+        we know the predicted values of y, depend on all input values of z for a softmax function
+        y1 = (e^z1)/sum(e^z1 + e^z2....e^zn)
+        grad of z = jacobian(dot) grad of y
+        grad of y is coming as input in this function, so what about jacobian?
+        jacobian = diag(y_predict) - y_predic.y_predict.T      ----- y_predcit is y^
+
+        np.identity(n) - gives diagonal of size nxn
+        '''
+       
+        n = np.size(self.output)
+        jacobian = np.identity(n)*self.output - self.output*self.output.T
+        return np.dot(jacobian, grad)
+        # this gives us gradient of z(which is input to softmax)
+
+
+def softmax():
+    return Softmax()
